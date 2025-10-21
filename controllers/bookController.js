@@ -328,8 +328,26 @@ const postBorrowBook = async (req, res, next) => {
                 err.status = 400;
                 return next(err);
             ```
-        */
+    */
     await connection.beginTransaction();
+
+    // 추가: 연체 여부 확인 (우선순위 최상위)
+    const [overdueRecords] = await connection.query(
+      `SELECT 1 FROM BorrowRecord
+        WHERE user_id = ? AND return_date IS NULL
+          AND borrow_date <= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        LIMIT 1`,
+      [userId]
+    );
+
+    if (overdueRecords.length > 0) {
+      await connection.rollback();
+      const err = new Error(
+        "You cannot borrow books while you have overdue books (7+ days)."
+      );
+      err.status = 400;
+      return next(err);
+    }
 
     // bookInstanceId를 book_id와 copy_no로 분리
     const bookId = Math.floor(bookInstanceId / 100);
