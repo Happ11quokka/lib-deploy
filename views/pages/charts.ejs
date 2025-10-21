@@ -39,33 +39,44 @@
                 <form action="/charts" method="GET" class="d-flex gap-2 mb-3">
                     <label for="categorySelect" class="form-label">Select Category:</label>
                     <select name="categoryId" id="categorySelect" class="form-select" onchange="this.form.submit()">
+                        <% if (!selectedCategoryId) { %>
+                            <option value="" selected disabled>Choose a category</option>
+                        <% } %>
                         <% categories.forEach(category => { %>
                             <option value="<%= category.id %>" <%= selectedCategoryId === category.id ? 'selected' : '' %>><%= category.name %></option>
                         <% }); %>
                     </select>
                 </form>
 
-                <% for (const categoryName in popularBooksByCategory) { %>
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Author</th>
-                                <th>Categories</th>
-                                <th>Borrow Count</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% popularBooksByCategory[categoryName].forEach(book => { %>
+                <% if (selectedCategoryName) { %>
+                    <% const categoryBooks = popularBooksByCategory[selectedCategoryName] || []; %>
+                    <h3 class="mb-2"><%= selectedCategoryName %></h3>
+                    <% if (categoryBooks.length > 0) { %>
+                        <table class="table table-striped">
+                            <thead>
                                 <tr>
-                                    <td><%= book.title %></td>
-                                    <td><%= book.author %></td>
-                                    <td><%= book.categories %></td>
-                                    <td><%= book.borrow_count %></td>
+                                    <th>Title</th>
+                                    <th>Author</th>
+                                    <th>Categories</th>
+                                    <th>Borrow Count</th>
                                 </tr>
-                            <% }); %>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                <% categoryBooks.forEach(book => { %>
+                                    <tr>
+                                        <td><%= book.title %></td>
+                                        <td><%= book.author %></td>
+                                        <td><%= book.categories %></td>
+                                        <td><%= book.borrow_count %></td>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    <% } else { %>
+                        <p class="text-muted">No borrowing records for this category in the last 3 months.</p>
+                    <% } %>
+                <% } else { %>
+                    <p class="text-muted">No categories available.</p>
                 <% } %>
             </div>
         </main>
