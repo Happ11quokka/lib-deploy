@@ -25,15 +25,22 @@ const postLogin = async (req, res, next) => {
             TODO: username 과 password를 이용해 로그인을 진행하는 코드를 작성하세요.
         */
     const [rows] = await db.query(
-      "SELECT * FROM User WHERE user_name = ? AND password = ?",
+      `SELECT 
+          u.*, 
+          r.role_name
+        FROM User u
+        JOIN Role r ON u.role_id = r.role_id
+        WHERE u.user_name = ? AND u.password = ?`,
       [username, password]
-    );
+    ); // 추가: 역할 이름까지 함께 조회
 
     const user = rows[0];
     if (user) {
       req.session.userId = user.user_id;
       req.session.username = user.user_name;
-      req.session.role = user.role_id; // role_id 1=user, 2=admin
+      req.session.role = user.role_name; // 추가: 관리자 UI 노출을 위한 문자열 역할
+      req.session.roleId = user.role_id; // 추가: 숫자 역할도 유지
+      req.session.adminId = user.admin_id; // 추가: 관리자 도메인 데이터 활용
       res.redirect("/");
     } else {
       const err = new Error("Invalid username or password.");
