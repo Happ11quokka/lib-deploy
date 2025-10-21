@@ -1,36 +1,45 @@
-const db = require('../config/db');
+const db = require("../config/db");
 
 const getBorrowingsPage = async (req, res, next) => {
-    const userId = req.session.userId;
+  const userId = req.session.userId;
 
-    if (!userId) {
-        return res.redirect('/login');
-    }
+  if (!userId) {
+    return res.redirect("/login");
+  }
 
-    const dummyBorrowings = [ // 이 변수는 더미데이터입니다. 구현을 다하면 제거해주세요.
-        {
-            id: 1, book_instance_id: 13, book_title: 'The Hobbit', book_author: 'J.R.R Tolkien', borrow_date: '2023.10.01', return_date: '2023.10.15', status: 'returned'
-        },
-        {
-            id: 2, book_instance_id: 11, book_title: 'The Lord of the Rings', book_author: 'J.R.R Tolkien', borrow_date: '2023.10.05', return_date: null, status: 'borrowed'
-        },
-        {
-            id: 3, book_instance_id: 10, book_title: 'The Silmarillion', book_author: 'J.R.R Tolkien', borrow_date: '2023.10.10', return_date: null, status: 'borrowed'
-        },
-    ];
-    try {
-        /*
+  try {
+    /*
             TODO: 유저의 대여 기록을 모두 출력하는 페이지를 렌더링하는 코드를 작성하세요.
         */
-        res.render('pages/borrowings', {
-            title: 'My Borrowing History',
-            borrowings: dummyBorrowings // 대여 기록 리스트가 전달되어야 합니다.
-        });
-    } catch (err) {
-        next(err);
-    }
+    const [borrowings] = await db.query(
+      `SELECT 
+                br.record_id as id,
+                CONCAT(br.book_id, LPAD(br.copy_no, 2, '0')) as book_instance_id,
+                b.title as book_title,
+                a.author_name as book_author,
+                DATE_FORMAT(br.borrow_date, '%Y.%m.%d') as borrow_date,
+                DATE_FORMAT(br.return_date, '%Y.%m.%d') as return_date,
+                CASE 
+                    WHEN br.return_date IS NULL THEN 'borrowed'
+                    ELSE 'returned'
+                END as status
+            FROM BorrowRecord br
+            JOIN Book b ON br.book_id = b.book_id
+            LEFT JOIN Author a ON b.author_id = a.author_id
+            WHERE br.user_id = ?
+            ORDER BY br.borrow_date DESC`,
+      [userId]
+    );
+
+    res.render("pages/borrowings", {
+      title: "My Borrowing History",
+      borrowings: borrowings,
+    });
+  } catch (err) {
+    next(err);
+  }
 };
 
 module.exports = {
-    getBorrowingsPage
+  getBorrowingsPage,
 };
