@@ -128,20 +128,28 @@ const postAddBook = async (req, res, next) => {
 
     // 1. 저자 처리 (없으면 추가)
     let authorId;
-    if (authors && authors.trim() !== "") {
-      const [existingAuthor] = await connection.query(
-        `SELECT author_id FROM Author WHERE author_name = ?`,
-        [authors]
-      );
-
-      if (existingAuthor.length > 0) {
-        authorId = existingAuthor[0].author_id;
+    if (authors && typeof authors === "string" && authors.trim() !== "") {
+      if (authors.startsWith("id:")) {
+        const parsedAuthorId = Number(authors.slice(3));
+        if (!Number.isNaN(parsedAuthorId)) {
+          authorId = parsedAuthorId;
+        }
       } else {
-        const [authorResult] = await connection.query(
-          `INSERT INTO Author (author_name) VALUES (?)`,
-          [authors]
+        const trimmedAuthor = authors.trim();
+        const [existingAuthor] = await connection.query(
+          `SELECT author_id FROM Author WHERE author_name = ?`,
+          [trimmedAuthor]
         );
-        authorId = authorResult.insertId;
+
+        if (existingAuthor.length > 0) {
+          authorId = existingAuthor[0].author_id;
+        } else {
+          const [authorResult] = await connection.query(
+            `INSERT INTO Author (author_name) VALUES (?)`,
+            [trimmedAuthor]
+          );
+          authorId = authorResult.insertId;
+        }
       }
     }
 
@@ -153,14 +161,51 @@ const postAddBook = async (req, res, next) => {
     const bookId = bookResult.insertId;
 
     // 3. 카테고리 연결
-    if (categories && Array.isArray(categories)) {
-      for (const categoryId of categories) {
-        const [categoryExists] = await connection.query(
-          `SELECT category_id FROM Category WHERE category_id = ?`,
-          [categoryId]
+    const categoryInputs = Array.isArray(categories)
+      ? categories
+      : categories
+      ? [categories]
+      : [];
+
+    for (const rawCategory of categoryInputs) {
+      if (!rawCategory || typeof rawCategory !== "string") {
+        continue;
+      }
+
+      let categoryId = null;
+      if (rawCategory.startsWith("id:")) {
+        const parsedId = Number(rawCategory.slice(3));
+        if (!Number.isNaN(parsedId)) {
+          categoryId = parsedId;
+        }
+      } else {
+        const trimmedName = rawCategory.trim();
+        if (trimmedName.length === 0) {
+          continue;
+        }
+
+        const [existingCategory] = await connection.query(
+          `SELECT category_id FROM Category WHERE category_name = ?`,
+          [trimmedName]
         );
 
-        if (categoryExists.length > 0) {
+        if (existingCategory.length > 0) {
+          categoryId = existingCategory[0].category_id;
+        } else {
+          const [newCategory] = await connection.query(
+            `INSERT INTO Category (category_name, admin_id) VALUES (?, ?)`,
+            [trimmedName, adminId]
+          );
+          categoryId = newCategory.insertId;
+        }
+      }
+
+      if (categoryId) {
+        const [alreadyLinked] = await connection.query(
+          `SELECT 1 FROM BookCategory WHERE book_id = ? AND category_id = ?`,
+          [bookId, categoryId]
+        );
+        if (alreadyLinked.length === 0) {
           await connection.query(
             `INSERT INTO BookCategory (book_id, category_id) VALUES (?, ?)`,
             [bookId, categoryId]
