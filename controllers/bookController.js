@@ -99,13 +99,17 @@ const getAddBookPage = async (req, res, next) => {
       `SELECT author_id as id, author_name as name FROM Author ORDER BY author_name`
     );
 
-    res.render("pages/add-books", {
+    res.render("pages/add-book", {
       title: "Add New Book",
       categories: categories,
       authors: authors,
     });
   } catch (err) {
-    next(err);
+    next(
+      new Error(
+        "The page you added to the book could not be found. Please contact the administrator."
+      )
+    );
   }
 };
 
