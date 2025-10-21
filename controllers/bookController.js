@@ -351,6 +351,23 @@ const postBorrowBook = async (req, res, next) => {
       return next(err);
     }
 
+    // 추가: 동일한 책(동일 bookId)을 동시에 2권 이상 대출하지 못하도록 검사
+    const [sameBookBorrow] = await connection.query(
+      `SELECT 1 FROM BorrowRecord 
+       WHERE user_id = ? AND book_id = ? AND return_date IS NULL
+       LIMIT 1`,
+      [userId, bookId]
+    );
+
+    if (sameBookBorrow.length > 0) {
+      await connection.rollback();
+      const err = new Error(
+        "You cannot borrow multiple copies of the same book simultaneously."
+      );
+      err.status = 400;
+      return next(err);
+    }
+
     // 2. 책 상태 확인
     const [bookCopy] = await connection.query(
       `SELECT status FROM BookCopy WHERE book_id = ? AND copy_no = ?`,
