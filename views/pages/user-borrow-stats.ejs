@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <%- include('../components/header') %>
+        <main>
+            <div class="card w-100">
+                <h2 class="mb-3"><%= title %></h2>
+                <form action="/user-borrow-stats" method="GET" class="d-flex gap-2 flex-row mb-2" style="flex-wrap: wrap;">
+                    <select name="periodType" class="form-select">
+                        <option value="monthly" <%= periodType === 'monthly' ? 'selected' : '' %>>Monthly</option>
+                        <option value="quarterly" <%= periodType === 'quarterly' ? 'selected' : '' %>>Quarterly</option>
+                    </select>
+                    <input type="month" name="referenceDate" class="form-control" value="<%= selectedMonth %>">
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                </form>
+                <div class="mb-2">
+                    <strong>Period:</strong>
+                    <span><%= periodLabel %></span>
+                    <span>(<%= periodStart %> ~ <%= periodEnd %>)</span>
+                </div>
+                <% if (!stats || stats.length === 0) { %>
+                    <p>No borrow activity recorded for this period.</p>
+                <% } else { %>
+                    <div class="d-flex gap-2 mb-2">
+                        <div><strong>Total Borrowed:</strong> <%= summary.totalBorrowed %></div>
+                        <div><strong>Overdue Records:</strong> <%= summary.overdueCount %></div>
+                    </div>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Role</th>
+                                <th>Total Borrowed</th>
+                                <th>Overdue Count</th>
+                                <th>Favorite Category</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% stats.forEach(stat => { %>
+                                <tr>
+                                    <td><%= stat.user_name %></td>
+                                    <td><%= stat.role_name %></td>
+                                    <td><%= stat.total_borrowed %></td>
+                                    <td><%= stat.overdue_count %></td>
+                                    <td><%= stat.favorite_category || '-' %></td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                <% } %>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
