@@ -11,6 +11,7 @@ const initDB = async () => {
     await db.query("DROP TABLE IF EXISTS ManagesMember");
     await db.query("DROP TABLE IF EXISTS BookStatistics");
     await db.query("DROP TABLE IF EXISTS BorrowRecord");
+    await db.query("DROP TABLE IF EXISTS ManageLog"); // 추가 1: ManageLog 테이블 삭제
     await db.query("DROP TABLE IF EXISTS BookCopy");
     await db.query("DROP TABLE IF EXISTS BookCategory");
     await db.query("DROP TABLE IF EXISTS Book");
@@ -91,6 +92,25 @@ const initDB = async () => {
           ON DELETE SET NULL
           ON UPDATE CASCADE,
         FOREIGN KEY (admin_id) REFERENCES Admin(admin_id)
+          ON DELETE SET NULL
+          ON UPDATE CASCADE
+      )
+    `);
+
+    // ManageLog
+    await db.query(`
+      CREATE TABLE ManageLog (
+        log_id INT AUTO_INCREMENT PRIMARY KEY,
+        admin_id INT DEFAULT NULL,
+        book_id INT DEFAULT NULL,
+        book_title VARCHAR(255) NOT NULL,
+        action_type ENUM('add', 'remove') NOT NULL,
+        change_amount INT NOT NULL,
+        action_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (admin_id) REFERENCES Admin(admin_id)
+          ON DELETE SET NULL
+          ON UPDATE CASCADE,
+        FOREIGN KEY (book_id) REFERENCES Book(book_id)
           ON DELETE SET NULL
           ON UPDATE CASCADE
       )
@@ -255,6 +275,14 @@ const initDB = async () => {
         (2, 2, 'borrowed'),
         (3, 1, 'available'),
         (3, 2, 'available')
+    `);
+
+    await db.query(`
+      INSERT INTO ManageLog (admin_id, book_id, book_title, action_type, change_amount)
+      VALUES 
+        (1, 1, 'The Hobbit', 'add', 3),
+        (1, 2, 'Foundation', 'add', 2),
+        (1, 3, 'Murder on the Orient Express', 'add', 2)
     `);
 
     await db.query(`

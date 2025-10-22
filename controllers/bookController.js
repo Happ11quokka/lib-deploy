@@ -176,8 +176,7 @@ const postAddBook = async (req, res, next) => {
 
     if (existingBookRows.length > 0) {
       bookId = existingBookRows[0].book_id;
-      existingBookQuantity =
-        Number(existingBookRows[0].quantity) || 0;
+      existingBookQuantity = Number(existingBookRows[0].quantity) || 0;
 
       if (
         authorId &&
@@ -271,6 +270,12 @@ const postAddBook = async (req, res, next) => {
       updatedQuantity,
       bookId,
     ]);
+    // 5. 관리 로그 기록 - 추가 기능 1
+    await connection.query(
+      `INSERT INTO ManageLog (admin_id, book_id, book_title, action_type, change_amount)
+       VALUES (?, ?, ?, 'add', ?)`,
+      [adminId || null, bookId, sanitizedTitle, bookQuantity]
+    );
 
     await connection.commit();
     res.redirect("/books");
@@ -284,6 +289,8 @@ const postAddBook = async (req, res, next) => {
 
 const postDeleteBookInstance = async (req, res, next) => {
   const bookInstanceId = Number(req.params.id);
+  // 추가 기능 1을 위해서 adminId도 가져옴
+  const adminId = req.session.adminId || null;
 
   const connection = await db.pool.getConnection();
 
@@ -309,6 +316,18 @@ const postDeleteBookInstance = async (req, res, next) => {
 
     const bookId = copyInfo[0].book_id;
     const copyNo = copyInfo[0].copy_no;
+    // 책 제목 조회 - 추가 기능 1
+    const [bookRows] = await connection.query(
+      `SELECT title FROM Book WHERE book_id = ?`,
+      [bookId]
+    );
+    const rawBookTitle =
+      bookRows.length > 0 && typeof bookRows[0].title === "string"
+        ? bookRows[0].title
+        : "";
+    const trimmedBookTitle = rawBookTitle.trim();
+    const bookTitle =
+      trimmedBookTitle.length > 0 ? trimmedBookTitle : `Book #${bookId}`;
 
     // 2. 대출 중인지 확인
     const [borrowStatus] = await connection.query(
@@ -346,6 +365,12 @@ const postDeleteBookInstance = async (req, res, next) => {
         bookId,
       ]);
     }
+    // 7. 관리 로그 기록 - 추가 기능 1
+    await connection.query(
+      `INSERT INTO ManageLog (admin_id, book_id, book_title, action_type, change_amount)
+       VALUES (?, ?, ?, 'remove', -1)`,
+      [adminId, bookId, bookTitle]
+    );
 
     await connection.commit();
     res.redirect("/books");

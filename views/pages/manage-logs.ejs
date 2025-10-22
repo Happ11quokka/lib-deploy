@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <%- include('../components/header') %>
+        <main>
+            <div class="card w-100">
+                <h2 class="mb-3"><%= title %></h2>
+                <% if (!logs || logs.length === 0) { %>
+                    <p>No management actions have been recorded yet.</p>
+                <% } else { %>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Time</th>
+                                <th>Action</th>
+                                <th>Book</th>
+                                <th>Change</th>
+                                <th>By</th>
+                                <th>Book ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% logs.forEach(log => { %>
+                                <tr>
+                                    <td><%= log.log_id %></td>
+                                    <td><%= log.displayDate %></td>
+                                    <td><%= log.action_type === 'add' ? 'Add' : 'Remove' %></td>
+                                    <td><%= log.book_title %></td>
+                                    <td><%= log.changeLabel %></td>
+                                    <td><%= log.adminLabel %></td>
+                                    <td><%= log.bookReference %></td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                <% } %>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
