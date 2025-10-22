@@ -153,12 +153,49 @@ const postAddBook = async (req, res, next) => {
       }
     }
 
-    // 2. 책 추가
-    const [bookResult] = await connection.query(
-      `INSERT INTO Book (title, author_id, quantity, admin_id) VALUES (?, ?, ?, ?)`,
-      [title, authorId || null, quantity || 1, adminId]
+    // 2. 책(제목) 확인 및 조회
+    const sanitizedTitle = typeof title === "string" ? title.trim() : "";
+    if (sanitizedTitle.length === 0) {
+      await connection.rollback();
+      const err = new Error("Book title is required.");
+      err.status = 400;
+      return next(err);
+    }
+
+    const parsedQuantity = Number.parseInt(quantity, 10);
+    const bookQuantity =
+      Number.isNaN(parsedQuantity) || parsedQuantity <= 0 ? 1 : parsedQuantity;
+
+    const [existingBookRows] = await connection.query(
+      `SELECT book_id, quantity, author_id FROM Book WHERE title = ? ORDER BY book_id LIMIT 1`,
+      [sanitizedTitle]
     );
-    const bookId = bookResult.insertId;
+
+    let bookId;
+    let existingBookQuantity = 0;
+
+    if (existingBookRows.length > 0) {
+      bookId = existingBookRows[0].book_id;
+      existingBookQuantity =
+        Number(existingBookRows[0].quantity) || 0;
+
+      if (
+        authorId &&
+        (existingBookRows[0].author_id === null ||
+          existingBookRows[0].author_id === undefined)
+      ) {
+        await connection.query(
+          `UPDATE Book SET author_id = ? WHERE book_id = ?`,
+          [authorId, bookId]
+        );
+      }
+    } else {
+      const [bookResult] = await connection.query(
+        `INSERT INTO Book (title, author_id, quantity, admin_id) VALUES (?, ?, ?, ?)`,
+        [sanitizedTitle, authorId || null, bookQuantity, adminId]
+      );
+      bookId = bookResult.insertId;
+    }
 
     // 3. 카테고리 연결
     const categoryInputs = Array.isArray(categories)
@@ -215,13 +252,25 @@ const postAddBook = async (req, res, next) => {
     }
 
     // 4. BookCopy 추가 (quantity만큼)
-    const bookQuantity = quantity || 1;
+    const [maxCopyRows] = await connection.query(
+      `SELECT COALESCE(MAX(copy_no), 0) AS maxCopyNo FROM BookCopy WHERE book_id = ?`,
+      [bookId]
+    );
+    let nextCopyNo = Number(maxCopyRows[0].maxCopyNo) || 0;
+
     for (let i = 1; i <= bookQuantity; i++) {
+      nextCopyNo += 1;
       await connection.query(
         `INSERT INTO BookCopy (book_id, copy_no, status) VALUES (?, ?, 'available')`,
-        [bookId, i]
+        [bookId, nextCopyNo]
       );
     }
+
+    const updatedQuantity = existingBookQuantity + bookQuantity;
+    await connection.query(`UPDATE Book SET quantity = ? WHERE book_id = ?`, [
+      updatedQuantity,
+      bookId,
+    ]);
 
     await connection.commit();
     res.redirect("/books");
