@@ -1,4 +1,125 @@
 const db = require("../config/db");
+// 날짜 포맷팅
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const refreshUserBorrowStats = async (periodStartDate, periodEndDate) => {
+  const periodStart = formatDate(periodStartDate);
+  const periodEnd = formatDate(periodEndDate);
+
+  const today = new Date();
+  let evaluationPoint = today;
+  if (evaluationPoint > periodEndDate) {
+    evaluationPoint = periodEndDate;
+  } else if (evaluationPoint < periodStartDate) {
+    evaluationPoint = periodEndDate;
+  }
+  const evaluationDate = formatDate(evaluationPoint);
+
+  await db.query(
+    `
+      DELETE FROM UserBorrowStats
+      WHERE period_start = ? AND period_end = ?
+    `,
+    [periodStart, periodEnd]
+  );
+
+  await db.query(
+    `
+      INSERT INTO UserBorrowStats (user_id, total_borrowed, overdue_count, favorite_category, period_start, period_end)
+      SELECT 
+        u.user_id,
+        COUNT(br.record_id) AS total_borrowed,
+        COALESCE(SUM(CASE
+          WHEN br.record_id IS NULL THEN 0
+          WHEN br.return_date IS NULL AND DATEDIFF(?, br.borrow_date) >= 7 THEN 1
+          WHEN br.return_date IS NOT NULL AND DATEDIFF(br.return_date, br.borrow_date) >= 7 THEN 1
+          ELSE 0
+        END), 0) AS overdue_count,
+        (
+          SELECT c.category_name
+          FROM BorrowRecord br2
+          JOIN BookCategory bc2 ON br2.book_id = bc2.book_id
+          JOIN Category c ON bc2.category_id = c.category_id
+          WHERE br2.user_id = u.user_id
+            AND br2.borrow_date BETWEEN ? AND ?
+          GROUP BY c.category_name
+          ORDER BY COUNT(*) DESC, c.category_name ASC
+          LIMIT 1
+        ) AS favorite_category,
+        ? AS period_start,
+        ? AS period_end
+      FROM User u
+      LEFT JOIN BorrowRecord br ON br.user_id = u.user_id
+        AND br.borrow_date BETWEEN ? AND ?
+      GROUP BY u.user_id
+      HAVING total_borrowed > 0 OR overdue_count > 0
+    `,
+    [
+      evaluationDate,
+      periodStart,
+      periodEnd,
+      periodStart,
+      periodEnd,
+      periodStart,
+      periodEnd,
+    ]
+  );
+};
+
+const refreshBookUsageStats = async (evaluationDate = new Date()) => {
+  const evaluationDay = formatDate(evaluationDate);
+
+  await db.query(`DELETE FROM BookUsageStats`);
+
+  await db.query(
+    `
+      INSERT INTO BookUsageStats (book_id, borrow_count, avg_borrow_duration, available_ratio, last_updated)
+      SELECT
+        b.book_id,
+        COALESCE(br.borrow_count, 0) AS borrow_count,
+        br.avg_duration,
+        bc.available_ratio,
+        NOW() AS last_updated
+      FROM Book b
+      LEFT JOIN (
+        SELECT
+          book_id,
+          COUNT(*) AS borrow_count,
+          ROUND(
+            AVG(
+              DATEDIFF(
+                CASE
+                  WHEN return_date IS NOT NULL THEN return_date
+                  ELSE ?
+                END,
+                borrow_date
+              )
+            ),
+            2
+          ) AS avg_duration
+        FROM BorrowRecord
+        GROUP BY book_id
+      ) AS br ON br.book_id = b.book_id
+      LEFT JOIN (
+        SELECT
+          book_id,
+          ROUND(
+            SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) /
+            NULLIF(COUNT(*), 0),
+            2
+          ) AS available_ratio
+        FROM BookCopy
+        GROUP BY book_id
+      ) AS bc ON bc.book_id = b.book_id
+    `,
+    [evaluationDay]
+  );
+};
 
 const initDB = async () => {
   try {
@@ -10,6 +131,8 @@ const initDB = async () => {
     await db.query("DROP VIEW IF EXISTS OverdueView");
     await db.query("DROP TABLE IF EXISTS ManagesMember");
     await db.query("DROP TABLE IF EXISTS BookStatistics");
+    await db.query("DROP TABLE IF EXISTS BookUsageStats");
+    await db.query("DROP TABLE IF EXISTS UserBorrowStats"); // 추가 2: UserBorrowStats 테이블 삭제
     await db.query("DROP TABLE IF EXISTS BorrowRecord");
     await db.query("DROP TABLE IF EXISTS ManageLog"); // 추가 1: ManageLog 테이블 삭제
     await db.query("DROP TABLE IF EXISTS BookCopy");
@@ -162,6 +285,25 @@ const initDB = async () => {
       )
     `);
 
+    // UserBorrowStats
+    await db.query(`
+      CREATE TABLE UserBorrowStats (
+        stat_id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        total_borrowed INT DEFAULT 0,
+        overdue_count INT DEFAULT 0,
+        favorite_category VARCHAR(100) DEFAULT NULL,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        CONSTRAINT fk_user_borrow_stats_user
+          FOREIGN KEY (user_id) REFERENCES User(user_id)
+            ON DELETE CASCADE
+            ON UPDATE CASCADE,
+        CONSTRAINT uq_user_borrow_stats_period
+          UNIQUE (user_id, period_start, period_end)
+      )
+    `);
+
     // BookStatistics
     await db.query(`
       CREATE TABLE BookStatistics (
@@ -177,6 +319,24 @@ const initDB = async () => {
         FOREIGN KEY (category_id) REFERENCES Category(category_id)
           ON DELETE SET NULL
           ON UPDATE CASCADE
+      )
+    `);
+
+    // BookUsageStats
+    await db.query(`
+      CREATE TABLE BookUsageStats (
+        stat_id INT AUTO_INCREMENT PRIMARY KEY,
+        book_id INT NOT NULL,
+        borrow_count INT DEFAULT 0,
+        avg_borrow_duration DECIMAL(6, 2) DEFAULT NULL,
+        available_ratio DECIMAL(5, 2) DEFAULT NULL,
+        last_updated DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_book_usage_stats_book
+          FOREIGN KEY (book_id) REFERENCES Book(book_id)
+            ON DELETE CASCADE
+            ON UPDATE CASCADE,
+        CONSTRAINT uq_book_usage_stats_book
+          UNIQUE (book_id)
       )
     `);
 
@@ -291,6 +451,29 @@ const initDB = async () => {
         (3, 1, 3, DATE_SUB(CURDATE(), INTERVAL 10 DAY), NULL),
         (2, 2, 2, DATE_SUB(CURDATE(), INTERVAL 3 DAY), NULL)
     `);
+
+    // UserBorrowStats 테이블에 월간 + 분기별 통계 자동 집계
+    console.log("Aggregating initial user borrow stats...");
+
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const currentQuarter = Math.floor(now.getMonth() / 3);
+    const firstDayOfQuarter = new Date(
+      now.getFullYear(),
+      currentQuarter * 3,
+      1
+    );
+    const lastDayOfQuarter = new Date(
+      now.getFullYear(),
+      currentQuarter * 3 + 3,
+      0
+    );
+
+    await refreshUserBorrowStats(firstDayOfMonth, lastDayOfMonth);
+    await refreshUserBorrowStats(firstDayOfQuarter, lastDayOfQuarter);
+    console.log("Aggregating initial book usage stats...");
+    await refreshBookUsageStats(now);
 
     console.log("Database initialization completed successfully.");
   } catch (err) {

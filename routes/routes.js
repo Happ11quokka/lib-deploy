@@ -8,6 +8,9 @@ const categoryController = require("../controllers/categoryController");
 const userController = require("../controllers/userController");
 // 로그 기록 관리 컨트롤러 추가
 const manageLogController = require("../controllers/manageLogController");
+// 사용자 대출 통계 컨트롤러 추가
+const userBorrowStatsController = require("../controllers/userBorrowStatsController");
+const bookUsageStatsController = require("../controllers/bookUsageStatsController");
 const { isAuthenticated, isAdmin } = require("../middleware/authMiddleware");
 
 // Login Page (no need login)
@@ -68,6 +71,13 @@ router.get(
   borrowingController.getBorrowingsPage
 );
 
+// Book Usage Stats Page (need login only)
+router.get(
+  "/book-usage-stats",
+  isAuthenticated,
+  bookUsageStatsController.getBookUsageStatsPage
+);
+
 // Categories Page (need login as admin)
 router.get(
   "/categories",
@@ -93,6 +103,14 @@ router.get(
   isAuthenticated,
   isAdmin,
   manageLogController.getManageLogsPage
+);
+
+// User Borrow Stats Page (need login as admin)
+router.get(
+  "/user-borrow-stats",
+  isAuthenticated,
+  isAdmin,
+  userBorrowStatsController.getUserBorrowStatsPage
 );
 
 module.exports = router;

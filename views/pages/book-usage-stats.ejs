@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <%- include('../components/header') %>
+        <main>
+            <div class="card w-100">
+                <h2 class="mb-3"><%= title %></h2>
+                <div class="d-flex gap-3 flex-wrap mb-3">
+                    <div><strong>Total Borrows:</strong> <%= totalBorrowCount %></div>
+                    <div><strong>Average Availability:</strong> <%= averageAvailability %></div>
+                    <% if (lastUpdated) { %>
+                    <div><strong>Last Updated:</strong> <%= lastUpdated %></div>
+                    <% } %>
+                </div>
+                <% if (!stats || stats.length === 0) { %>
+                    <p>No book usage data available.</p>
+                <% } else { %>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Book</th>
+                                <th>Author</th>
+                                <th>Categories</th>
+                                <th>Borrow Count</th>
+                                <th>Avg. Duration (days)</th>
+                                <th>Availability</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% stats.forEach(item => { %>
+                                <tr>
+                                    <td><%= item.title %></td>
+                                    <td><%= item.authorName %></td>
+                                    <td><%= item.categories %></td>
+                                    <td><%= item.borrowCount %></td>
+                                    <td><%= item.avgBorrowDurationDisplay %></td>
+                                    <td><%= item.availablePercentage %></td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                <% } %>
+            </div>
+        </main>
+    </div>
+</body>
+</html>
