@@ -6,7 +6,7 @@ const formatDate = (date) => {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
-
+// TODO 1. 도서 이용률 데이터 계산 (refreshBookUsageStats)
 const refreshBookUsageStats = async (evaluationDate = new Date()) => {
   const evaluationDay = formatDate(evaluationDate);
 
@@ -57,6 +57,7 @@ const refreshBookUsageStats = async (evaluationDate = new Date()) => {
   );
 };
 
+// TODO 2. 도서 이용 통계 페이지 렌더링 (getBookUsageStatsPage)
 const getBookUsageStatsPage = async (req, res, next) => {
   try {
     await refreshBookUsageStats(new Date());
@@ -103,9 +104,7 @@ const getBookUsageStatsPage = async (req, res, next) => {
         avgBorrowDuration,
         availableRatio,
         avgBorrowDurationDisplay:
-          avgBorrowDuration === null
-            ? "-"
-            : avgBorrowDuration.toFixed(2),
+          avgBorrowDuration === null ? "-" : avgBorrowDuration.toFixed(2),
         availablePercentage:
           availableRatio === null
             ? "-"
