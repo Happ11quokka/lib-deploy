@@ -1,5 +1,6 @@
 const db = require("../config/db");
 
+// TODO 2. 주기별 기간 계산
 const formatDate = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -81,6 +82,7 @@ const refreshUserBorrowStats = async (periodStartDate, periodEndDate) => {
   }
   const evaluationDate = formatDate(evaluationPoint);
 
+  // TODO 1. 주기별 통계 집계 부분
   await db.query(
     `
       DELETE FROM UserBorrowStats
@@ -132,6 +134,7 @@ const refreshUserBorrowStats = async (periodStartDate, periodEndDate) => {
   );
 };
 
+// TODO 3. 회원별 통계 페이지 렌더링
 const getUserBorrowStatsPage = async (req, res, next) => {
   const requestedPeriodType =
     req.query.periodType === "quarterly" ? "quarterly" : "monthly";
